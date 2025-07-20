@@ -34,7 +34,7 @@
 
 	const updateCharts = () => {
 		if (chart && lossChart && nnOutputChart) {
-			// Update derivative and loss charts (vs. change in w)
+			// Update derivative and loss charts
 			const dL_dw_data = [];
 			const dL_db_data = [];
 			const loss_data_w = [];
@@ -45,18 +45,16 @@
 				const temp_w = w + i;
 				const temp_y_w = sigmoid(temp_w * x + b);
 				const temp_loss_w = Math.pow(y_true - temp_y_w, 2);
+				const temp_dL_dw = -2 * (y_true - temp_y_w) * temp_y_w * (1 - temp_y_w) * x;
 				loss_data_w.push({ x: i, y: temp_loss_w });
+				dL_dw_data.push({ x: i, y: temp_dL_dw });
 
 				// For change in b
 				const temp_b = b + i;
 				const temp_y_b = sigmoid(w * x + temp_b);
 				const temp_loss_b = Math.pow(y_true - temp_y_b, 2);
+				const temp_dL_db = -2 * (y_true - temp_y_b) * temp_y_b * (1 - temp_y_b);
 				loss_data_b.push({ x: i, y: temp_loss_b });
-
-				const temp_dL_dw = -2 * (y_true - temp_y_w) * temp_y_w * (1 - temp_y_w) * x;
-				const temp_dL_db = -2 * (y_true - temp_y_w) * temp_y_w * (1 - temp_y_w);
-
-				dL_dw_data.push({ x: i, y: temp_dL_dw });
 				dL_db_data.push({ x: i, y: temp_dL_db });
 			}
 			chart.data.datasets[0].data = dL_dw_data;
@@ -117,7 +115,7 @@
 					plugins: {
 						title: {
 							display: true,
-							text: 'Partial Derivatives vs. Change in w'
+							text: 'Partial Derivatives vs. Change in Parameters'
 						}
 					},
 					scales: {
@@ -125,7 +123,7 @@
 							type: 'linear',
 							title: {
 								display: true,
-								text: 'Change in w'
+								text: 'Change in w or b'
 							}
 						},
 						y: {
