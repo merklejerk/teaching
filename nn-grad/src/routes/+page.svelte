@@ -2,6 +2,21 @@
 	import { onMount } from 'svelte';
 	import Chart from 'chart.js/auto';
 
+	// Parameter ranges
+	const W_MIN = -2;
+	const W_MAX = 2;
+	const B_MIN = -2;
+	const B_MAX = 2;
+	const X_MIN = -10;
+	const X_MAX = 10;
+	const Y_TRUE_MIN = 0;
+	const Y_TRUE_MAX = 1;
+
+	// Gradient descent settings
+	let learningRate = 0.1;
+	let isAutoStepping = false;
+	let autoStepInterval: ReturnType<typeof setInterval>;
+
 	// NN parameters
 	let w = 0.5;
 	let b = 0.1;
@@ -32,6 +47,41 @@
 	$: dL_dw = -2 * (y_true - y) * y * (1 - y) * x;
 	$: dL_db = -2 * (y_true - y) * y * (1 - y);
 
+	const randomizeParameters = () => {
+		w = Math.random() * (W_MAX - W_MIN) + W_MIN;
+		b = Math.random() * (B_MAX - B_MIN) + B_MIN;
+		x = Math.random() * (X_MAX - X_MIN) + X_MIN;
+		y_true = Math.random() * (Y_TRUE_MAX - Y_TRUE_MIN) + Y_TRUE_MIN;
+	};
+
+	const performGradientDescentStep = () => {
+		// Update parameters using gradient descent: param = param - learning_rate * gradient
+		w = w - learningRate * dL_dw;
+		b = b - learningRate * dL_db;
+		
+		// Clamp values to stay within bounds
+		w = Math.max(W_MIN, Math.min(W_MAX, w));
+		b = Math.max(B_MIN, Math.min(B_MAX, b));
+	};
+
+	const toggleAutoStepping = () => {
+		if (isAutoStepping) {
+			clearInterval(autoStepInterval);
+			isAutoStepping = false;
+		} else {
+			isAutoStepping = true;
+			autoStepInterval = setInterval(performGradientDescentStep, 500); // Step every 500ms
+		}
+	};
+
+	const resetParameters = () => {
+		w = 0.5;
+		b = 0.1;
+		if (isAutoStepping) {
+			toggleAutoStepping();
+		}
+	};
+
 	const updateCharts = () => {
 		if (chart && lossChart && nnOutputChart) {
 			// Update derivative and loss charts
@@ -40,7 +90,7 @@
 			const loss_data_w = [];
 			const loss_data_b = [];
 
-			for (let i = -2; i <= 2; i += 0.1) {
+			for (let i = W_MIN; i <= W_MAX; i += 0.1) {
 				// For change in w
 				const temp_w = w + i;
 				const temp_y_w = sigmoid(temp_w * x + b);
@@ -68,7 +118,7 @@
 			// Update NN Output chart (vs. input x)
 			const nn_output_data = [];
 			// Use a fixed range for x to show the effect of w and b on the sigmoid shape
-			for (let i = -10; i <= 10; i += 0.2) {
+			for (let i = X_MIN; i <= X_MAX; i += 0.2) {
 				const current_x = i;
 				const temp_y = sigmoid(w * current_x + b);
 				nn_output_data.push({ x: current_x, y: temp_y });
@@ -285,19 +335,22 @@
 	<div class="controls">
 		<div>
 			<label for="w">w: {w.toFixed(2)}</label>
-			<input id="w" type="range" bind:value={w} min="-2" max="2" step="0.01" />
+			<input id="w" type="range" bind:value={w} min={W_MIN} max={W_MAX} step="0.01" />
 		</div>
 		<div>
 			<label for="b">b: {b.toFixed(2)}</label>
-			<input id="b" type="range" bind:value={b} min="-2" max="2" step="0.01" />
+			<input id="b" type="range" bind:value={b} min={B_MIN} max={B_MAX} step="0.01" />
 		</div>
 		<div>
 			<label for="x">x: {x.toFixed(2)}</label>
-			<input id="x" type="range" bind:value={x} min="-10" max="10" step="0.1" />
+			<input id="x" type="range" bind:value={x} min={X_MIN} max={X_MAX} step="0.1" />
 		</div>
 		<div>
 			<label for="y_true">y_true: {y_true.toFixed(2)}</label>
-			<input id="y_true" type="range" bind:value={y_true} min="0" max="1" step="0.01" />
+			<input id="y_true" type="range" bind:value={y_true} min={Y_TRUE_MIN} max={Y_TRUE_MAX} step="0.01" />
+		</div>
+		<div>
+			<button on:click={randomizeParameters}>Randomize Parameters</button>
 		</div>
 	</div>
 
@@ -338,22 +391,22 @@
 
 			<h4>Chain Rule Application</h4>
 			<p>
-				We use the chain rule to find the partial derivatives of the loss `L` with respect to each
+				We use the chain rule to find the partial derivatives of the loss <code>L</code> with respect to each
 				parameter (w, b). The general form is:
 			</p>
 			<p class="formula">∂L/∂w = (∂L/∂y) * (∂y/∂z) * (∂z/∂w)</p>
 			<p>Where:</p>
 			<ul>
-				<li>`z = w*x + b` (the linear combination)</li>
-				<li>`y = σ(z)` (the sigmoid activation)</li>
-				<li>`L = (y_true - y)²` (the loss function)</li>
+				<li><code>z = w*x + b</code> (the linear combination)</li>
+				<li><code>y = σ(z)</code> (the sigmoid activation)</li>
+				<li><code>L = (y_true - y)²</code> (the loss function)</li>
 			</ul>
 
 			<h4>Step 1: Derivative of Loss w.r.t. Output (∂L/∂y)</h4>
 			<p class="formula">∂L/∂y = 2 * (y<sub>true</sub> - y) * (-1) = -2(y<sub>true</sub> - y)</p>
 
 			<h4>Step 2: Derivative of Activation w.r.t. Linear Input (∂y/∂z)</h4>
-			<p>The derivative of the sigmoid function `σ(z)` is `σ(z) * (1 - σ(z))`.</p>
+			<p>The derivative of the sigmoid function <code>σ(z)</code> is <code>σ(z) * (1 - σ(z))</code>.</p>
 			<p class="formula">∂y/∂z = y * (1 - y)</p>
 
 			<h4>Step 3: Derivative of Linear Input w.r.t. Parameters</h4>
@@ -365,6 +418,45 @@
 			<p class="formula">∂L/∂w = [-2(y<sub>true</sub> - y)] * [y(1-y)] * [x]</p>
 			<p><b>For b:</b></p>
 			<p class="formula">∂L/∂b = [-2(y<sub>true</sub> - y)] * [y(1-y)] * [1]</p>
+		</div>
+	</details>
+
+	<details class="gradient-descent">
+		<summary>Gradient Descent Controls</summary>
+		<div class="gradient-descent-content">
+			<div class="gd-controls">
+				<div>
+					<label for="learningRate">Learning Rate: {learningRate.toFixed(3)}</label>
+					<input id="learningRate" type="range" bind:value={learningRate} min="0.001" max="1" step="0.001" />
+				</div>
+				<div class="gd-buttons">
+					<button on:click={performGradientDescentStep}>Single Step</button>
+					<button on:click={toggleAutoStepping} class={isAutoStepping ? 'stop' : 'start'}>
+						{isAutoStepping ? 'Stop Auto-Step' : 'Start Auto-Step'}
+					</button>
+					<button on:click={resetParameters}>Reset to Default</button>
+				</div>
+			</div>
+			
+			<div class="gradient-step-info">
+				<h4>Next Gradient Descent Step (with learning rate {learningRate.toFixed(3)}):</h4>
+				<div class="step-grid">
+					<div>
+						<p>w_new = w - α × ∂L/∂w</p>
+						<p class="step-value">
+							{w.toFixed(4)} - {learningRate.toFixed(3)} × {dL_dw.toFixed(4)} = 
+							<span class="next-value">{(w - learningRate * dL_dw).toFixed(4)}</span>
+						</p>
+					</div>
+					<div>
+						<p>b_new = b - α × ∂L/∂b</p>
+						<p class="step-value">
+							{b.toFixed(4)} - {learningRate.toFixed(3)} × {dL_db.toFixed(4)} = 
+							<span class="next-value">{(b - learningRate * dL_db).toFixed(4)}</span>
+						</p>
+					</div>
+				</div>
+			</div>
 		</div>
 	</details>
 
@@ -449,6 +541,69 @@
 		display: flex;
 		flex-direction: column;
 	}
+	.controls button {
+		padding: 0.5em 1em;
+		font-size: 1em;
+		background-color: #007acc;
+		color: white;
+		border: none;
+		border-radius: 5px;
+		cursor: pointer;
+		margin-top: 0.5em;
+	}
+	.controls button:hover {
+		background-color: #005999;
+	}
+	.gradient-descent {
+		margin: 2em 0;
+		border: 1px solid #007acc;
+		border-radius: 5px;
+	}
+	.gradient-descent summary {
+		padding: 1em;
+		font-weight: bold;
+		cursor: pointer;
+		background-color: #e8f4f8;
+		color: #005999;
+	}
+	.gradient-descent-content {
+		padding: 1em;
+		border-top: 1px solid #007acc;
+		background-color: #f8fcff;
+	}
+	.gd-controls {
+		display: flex;
+		flex-direction: column;
+		gap: 1em;
+	}
+	.gd-controls > div {
+		display: flex;
+		flex-direction: column;
+	}
+	.gd-buttons {
+		display: grid !important;
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		gap: 0.5em;
+		flex-direction: row !important;
+	}
+	.gd-buttons button {
+		padding: 0.5em 1em;
+		font-size: 1em;
+		background-color: #007acc;
+		color: white;
+		border: none;
+		border-radius: 5px;
+		cursor: pointer;
+	}
+	.gd-buttons button:hover {
+		background-color: #005999;
+	}
+	.gd-buttons button.stop {
+		background-color: #dc3545;
+	}
+	.gd-buttons button.stop:hover {
+		background-color: #c82333;
+	}
 	.info {
 		margin-bottom: 1em;
 		background: #f4f4f4;
@@ -480,6 +635,33 @@
 	.formula-grid .value {
 		font-weight: bold;
 		font-size: 1.2em;
+	}
+	.gradient-step-info {
+		margin-top: 1em;
+		padding: 1em;
+		background: #fff;
+		border-radius: 5px;
+		border: 1px solid #007acc;
+	}
+	.gradient-step-info h4 {
+		margin-top: 0;
+		color: #005999;
+	}
+	.step-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+		gap: 1em;
+	}
+	.step-value {
+		font-family: monospace;
+		background: #fff;
+		padding: 0.5em;
+		border-radius: 3px;
+		border: 1px solid #ddd;
+	}
+	.next-value {
+		font-weight: bold;
+		color: #007acc;
 	}
 	.derivations {
 		margin: 2em 0;
